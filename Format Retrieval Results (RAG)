@@ -1,0 +1,160 @@
+import json
+from typing import List, Tuple
+from langchain.schema import Document
+
+def format_retrieval_results(results: List[Tuple[Document, float]], 
+                           max_content_length: int = 200,
+                           show_metadata: bool = True) -> None:
+    """
+    Pretty print LangChain retrieval results with relevance scores
+    
+    Args:
+        results: List of (Document, score) tuples from similarity_search_with_relevance_scores
+        max_content_length: Maximum characters to show from content
+        show_metadata: Whether to display document metadata
+    """
+    print("=" * 80)
+    print(f"RETRIEVAL RESULTS ({len(results)} documents found)")
+    print("=" * 80)
+    
+    for i, (doc, score) in enumerate(results, 1):
+        print(f"\n📄 DOCUMENT {i}")
+        print(f"{'─' * 50}")
+        
+        # Relevance score with color coding
+        if score >= 0.7:
+            score_emoji = "🟢"  # Good
+        elif score >= 0.4:
+            score_emoji = "🟡"  # Medium
+        else:
+            score_emoji = "🔴"  # Poor
+            
+        print(f"📊 Relevance Score: {score_emoji} {score:.4f}")
+        
+        # Metadata
+        if show_metadata and doc.metadata:
+            print(f"📁 Source: {doc.metadata.get('source', 'Unknown')}")
+            if 'id' in doc.metadata:
+                print(f"🆔 ID: {doc.metadata['id'][:20]}...")
+        
+        # Content preview
+        content = doc.page_content.strip()
+        if len(content) > max_content_length:
+            content = content[:max_content_length] + "..."
+        
+        print(f"📝 Content Preview:")
+        print(f"   {content}")
+        
+        print()
+
+
+def format_as_dataframe(results: List[Tuple[Document, float]]):
+    """
+    Convert results to a pandas DataFrame for better analysis
+    """
+    try:
+        import pandas as pd
+        
+        data = []
+        for doc, score in results:
+            data.append({
+                'score': score,
+                'source': doc.metadata.get('source', 'Unknown'),
+                'id': doc.metadata.get('id', 'No ID')[:20] + '...' if doc.metadata.get('id') else 'No ID',
+                'content_length': len(doc.page_content),
+                'content_preview': doc.page_content[:100] + '...' if len(doc.page_content) > 100 else doc.page_content
+            })
+        
+        df = pd.DataFrame(data)
+        return df.round({'score': 4})
+    
+    except ImportError:
+        print("pandas not available. Install with: pip install pandas")
+        return None
+
+
+def clean_content(content: str) -> str:
+    """
+    Clean up messy content formatting
+    """
+    import re
+    
+    # Remove excessive markdown symbols
+    content = re.sub(r'✦\s*', '• ', content)
+    
+    # Clean up multiple line breaks
+    content = re.sub(r'\n{3,}', '\n\n', content)
+    
+    # Remove excessive dashes
+    content = re.sub(r'-{3,}', '---', content)
+    
+    # Clean up HTML tags
+    content = re.sub(r'<[^>]+>', '', content)
+    
+    # Fix spacing around bullet points
+    content = re.sub(r'\n\s*•\s*', '\n• ', content)
+    
+    return content.strip()
+
+
+def extract_key_info(results: List[Tuple[Document, float]], 
+                    query: str = "",
+                    min_score: float = 0.0) -> dict:
+    """
+    Extract key information from retrieval results
+    
+    Returns:
+        Dictionary with summary statistics and filtered results
+    """
+    filtered_results = [(doc, score) for doc, score in results if score >= min_score]
+    
+    if not filtered_results:
+        return {"message": f"No results found with score >= {min_score}"}
+    
+    scores = [score for _, score in filtered_results]
+    
+    summary = {
+        "query": query,
+        "total_results": len(results),
+        "filtered_results": len(filtered_results),
+        "score_stats": {
+            "max": max(scores),
+            "min": min(scores),
+            "avg": sum(scores) / len(scores)
+        },
+        "sources": list(set([doc.metadata.get('source', 'Unknown') 
+                           for doc, _ in filtered_results])),
+        "top_result": {
+            "score": filtered_results[0][1],
+            "source": filtered_results[0][0].metadata.get('source', 'Unknown'),
+            "preview": filtered_results[0][0].page_content[:150] + "..."
+        }
+    }
+    
+    return summary
+
+
+# Usage examples:
+def demo_usage():
+    """
+    Example usage of the formatting functions
+    """
+    # Assuming you have results from your retrieval
+    # results = vectordb.similarity_search_with_relevance_scores("What is Top-P sampling?", k=4)
+    
+    # Method 1: Pretty print
+    # format_retrieval_results(results)
+    
+    # Method 2: DataFrame view
+    # df = format_as_dataframe(results)
+    # print(df)
+    
+    # Method 3: Key info extraction
+    # summary = extract_key_info(results, query="What is Top-P sampling?", min_score=0.3)
+    # print(json.dumps(summary, indent=2))
+    
+    print("Functions ready to use!")
+
+
+if __name__ == "__main__":
+    demo_usage()
