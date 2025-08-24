@@ -1,0 +1,22 @@
+# Compared to the rag pipelines that we used above, this cell allows a custom prompt to be used
+# This is useful for customizing the prompt to be used in the retrieval QA chain
+# The prompt below is the standard template that is used in the retrieval QA chain
+# It also includes the "documents" that are used in the prompt
+from langchain.prompts import PromptTemplate
+
+# Build prompt
+template = """Use the following pieces of context to answer the question at the end.
+If you don't know the answer, just say that you don't know, don't try to make up an answer.
+Use three sentences maximum. Keep the answer as concise as possible. Always say "thanks for asking!" at the end of the answer.
+{context}
+Question: {question}
+Helpful Answer:"""
+QA_CHAIN_PROMPT = PromptTemplate.from_template(template)
+
+# Run chain
+qa_chain = RetrievalQA.from_chain_type(
+    ChatOpenAI(model='gpt-4o-mini'),
+    retriever=vectordb.as_retriever(),
+    return_source_documents=True, # Make inspection of document possible
+    chain_type_kwargs={"prompt": QA_CHAIN_PROMPT}
+)
